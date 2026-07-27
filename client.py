@@ -348,7 +348,9 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      #MainMenu, header, footer {visibility: hidden;}
+      #MainMenu {visibility: visible;}
+      header {visibility: visible; background: transparent;}
+      footer {visibility: hidden;}
       .block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 980px;}
 
       .bwa-hero {
