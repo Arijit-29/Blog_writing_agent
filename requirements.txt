@@ -1,0 +1,11 @@
+streamlit>=1.40.0
+pandas>=2.2.0
+Markdown>=3.7
+weasyprint>=62.0
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-groq>=0.2.0
+langchain-tavily>=0.1.0
+pydantic>=2.8.0
+python-dotenv>=1.0.0
+requests>=2.32.0
