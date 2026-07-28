@@ -429,6 +429,10 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "generated" not in st.session_state:
     st.session_state.generated = False
+if "processing" not in st.session_state:
+     st.session_state.processing = False
+if "pending_topic" not in st.session_state:
+    st.session_state.pending_topic = None
 if "last_out" not in st.session_state:
     st.session_state.last_out = None
 if "logs" not in st.session_state:
@@ -448,14 +452,7 @@ for msg in st.session_state.messages:
 # =========================================================
 topic: Optional[str] = None
 
-if not st.session_state.generated:
-    with st.expander("⚙️ Advanced settings", expanded=False):
-        st.session_state.as_of_date = st.date_input(
-            "As-of date (for freshness of research)",
-            value=st.session_state.as_of_date,
-        )
-    topic = st.chat_input("Describe the blog you want, e.g. 'The rise of agentic AI in 2026'…")
-else:
+if st.session_state.generated:
     st.markdown(
         """
         <div class="bwa-lock">
@@ -464,18 +461,44 @@ else:
         """,
         unsafe_allow_html=True,
     )
+elif st.session_state.processing:
+    st.markdown(
+        """
+        <div class="bwa-lock">
+          ⏳ Writing your blog — please wait, the chat box will reopen if this doesn't finish.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    with st.expander("⚙️ Advanced settings", expanded=False):
+        st.session_state.as_of_date = st.date_input(
+            "As-of date (for freshness of research)",
+            value=st.session_state.as_of_date,
+        )
+    topic = st.chat_input("Describe the blog you want, e.g. 'The rise of agentic AI in 2026'…")
+
 
 
 # =========================================================
 # Run the graph when a topic is submitted
 # =========================================================
-if topic and topic.strip():
-    st.session_state.messages.append({"role": "user", "content": topic})
-    with st.chat_message("user", avatar="🧑"):
-        st.markdown(topic)
-
+if topic and topic.strip() and not st.session_state.processing and not st.session_state.generated:
+    st.session_state.messages.append({"role": "user", "content": topic.strip()})
+    st.session_state.pending_topic = topic.strip()
+    st.session_state.processing = True
+    st.rerun()
+ 
+ 
+# =========================================================
+# Phase 2 — the chat box is already hidden at this point.
+# Run the (slow, blocking) workflow here.
+# =========================================================
+if st.session_state.processing and st.session_state.pending_topic:
+    pending = st.session_state.pending_topic
+ 
     inputs: Dict[str, Any] = {
-        "topic": topic.strip(),
+        "topic": pending,
         "mode": "",
         "needs_research": False,
         "queries": [],
@@ -489,14 +512,14 @@ if topic and topic.strip():
         "image_specs": [],
         "final": "",
     }
-
+ 
     with st.chat_message("assistant", avatar="✍️"):
         status = st.status("Working on your blog…", expanded=True)
         progress_area = st.empty()
-
+ 
         run_logs: List[str] = []
         try:
-            out = run_blog_workflow(topic=topic.strip(), batch_size=2, delay=15.0)
+            out = run_blog_workflow(topic=pending, batch_size=2, delay=15.0)
             st.session_state.last_out = out
             status.update(label="✅ Blog complete", state="complete", expanded=False)
             run_logs.append("[workflow] completed")
@@ -506,21 +529,23 @@ if topic and topic.strip():
             st.error(f"Blog generation failed: {exc}")
             run_logs.append(f"[error] {exc}")
             out = None
-
+ 
         st.session_state.logs.extend(run_logs)
-
+ 
         plan_obj = (st.session_state.last_out or {}).get("plan")
         if hasattr(plan_obj, "blog_title"):
             done_title = plan_obj.blog_title
         elif isinstance(plan_obj, dict):
-            done_title = plan_obj.get("blog_title", topic.strip())
+            done_title = plan_obj.get("blog_title", pending)
         else:
-            done_title = topic.strip()
-
+            done_title = pending
+ 
         done_msg = f"Done! 🎉 I've written **{done_title}** — scroll down for the plan, evidence, preview and images."
         st.markdown(done_msg)
         st.session_state.messages.append({"role": "assistant", "content": done_msg})
-
+ 
+    st.session_state.pending_topic = None
+    st.session_state.processing = False
     st.session_state.generated = True
     st.rerun()
 
